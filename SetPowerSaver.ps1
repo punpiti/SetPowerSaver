@@ -2,16 +2,15 @@
 # --------------------------------------------------------------------
 # Purpose:
 #   - Enable Hibernate.
-#   - Make sure the Hibernate option is visible in Start / Power menu
-#     (when running as Administrator).
+#   - Ensure Hibernate is visible in Start / Power menu (when possible).
 #   - Switch to "Power saver" plan (SCHEME_MAX) where possible.
 #   - Configure display/sleep/hibernate timeouts for AC and DC.
 #
-# Behavior regarding Administrator rights:
-#   - Script does NOT crash if not admin.
-#   - For each operation that requires admin:
-#       * If admin: execute it, check result.
-#       * If NOT admin: skip it and print a clear warning.
+# Admin behavior:
+#   - /hibernate on  และการแก้ HKLM ต้องใช้ Admin แน่นอน -> ถ้าไม่ใช่ Admin จะ SKIP พร้อมเตือน
+#   - /setactive SCHEME_MAX และ /change timeout:
+#       * พยายามรันเสมอ
+#       * ถ้าทำไม่ได้ค่อยเตือน (อาจเพราะสิทธิ์ไม่พอหรือ policy บล็อก)
 # --------------------------------------------------------------------
 
 $ErrorActionPreference = 'Stop'
@@ -30,14 +29,15 @@ $IsAdmin = Test-IsAdmin
 if ($IsAdmin) {
     Write-Host "[INFO] Running with Administrator privileges." -ForegroundColor Green
 } else {
-    Write-Warning "[WARN] Not running as Administrator. Steps that require admin will be skipped and only reported."
+    Write-Host "[INFO] Running as standard user. Some steps that *require* admin will be skipped, others will be attempted normally." -ForegroundColor Yellow
 }
 
 # --------------------------------------------------------------------
-# STEP 1: Enable Hibernate
+# STEP 1: Enable Hibernate (must be admin)
 # --------------------------------------------------------------------
 Write-Host ""
 Write-Host "[STEP] Enabling Hibernate (powercfg /hibernate on)..." -ForegroundColor Cyan
+
 if ($IsAdmin) {
     powercfg /hibernate on 2>$null
     if ($LASTEXITCODE -ne 0) {
@@ -46,11 +46,11 @@ if ($IsAdmin) {
         Write-Host "[INFO] Hibernate has been enabled (or was already enabled)." -ForegroundColor Green
     }
 } else {
-    Write-Warning "[SKIP] Skipping 'powercfg /hibernate on' because script is not running as Administrator."
+    Write-Warning "[SKIP] Skipping 'powercfg /hibernate on' because this command requires Administrator privileges."
 }
 
 # --------------------------------------------------------------------
-# STEP 2: Ensure Hibernate shows in Start / Power menu (HKLM registry)
+# STEP 2: Ensure Hibernate shows in Start / Power menu (HKLM registry, must be admin)
 # --------------------------------------------------------------------
 Write-Host ""
 Write-Host "[STEP] Ensuring 'Hibernate' appears in Start / Power menu..." -ForegroundColor Cyan
@@ -87,64 +87,59 @@ if ($IsAdmin) {
     Write-Host "[INFO] PolicyManager HideHibernate.value=0 set under HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Start\HideHibernate" -ForegroundColor Green
 }
 else {
-    Write-Warning "[SKIP] Skipping registry changes for Hibernate menu (HKLM) because script is NOT running as Administrator."
+    Write-Warning "[SKIP] Skipping registry changes for Hibernate menu (HKLM:\...) because they require Administrator privileges."
 }
 
 # --------------------------------------------------------------------
-# STEP 3: Switch to Power saver plan (SCHEME_MAX)
+# STEP 3: Switch to Power saver plan (SCHEME_MAX) - try always, warn on failure
 # --------------------------------------------------------------------
 Write-Host ""
 Write-Host "[STEP] Switching to Power saver plan (SCHEME_MAX)..." -ForegroundColor Cyan
 
-if ($IsAdmin) {
+try {
     powercfg /setactive SCHEME_MAX 2>$null
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "[WARN] Failed to switch to SCHEME_MAX (Power saver). This may be blocked by policy."
+        Write-Warning "[WARN] Failed to switch to SCHEME_MAX (Power saver). This may require admin rights or be blocked by policy."
     } else {
         Write-Host "[INFO] Power saver plan has been requested as the active plan." -ForegroundColor Green
     }
 }
-else {
-    Write-Warning "[SKIP] Skipping 'powercfg /setactive SCHEME_MAX' because script is NOT running as Administrator."
+catch {
+    Write-Warning "[WARN] Exception while switching to SCHEME_MAX: $($_.Exception.Message)"
+    Write-Warning "[WARN] This operation may require Administrator privileges or may be blocked."
 }
 
 # --------------------------------------------------------------------
-# STEP 4: Configure display / sleep / hibernate timeouts
+# STEP 4: Configure display / sleep / hibernate timeouts - try always, warn on failure
 # --------------------------------------------------------------------
 Write-Host ""
 Write-Host "[STEP] Configuring display / sleep / hibernate timeouts..." -ForegroundColor Cyan
 
-if ($IsAdmin) {
-    try {
-        # AC (plugged in)
-        powercfg /change monitor-timeout-ac 10    | Out-Null  # display off after 10 minutes
-        powercfg /change standby-timeout-ac 30    | Out-Null  # sleep after 30 minutes
-        powercfg /change hibernate-timeout-ac 180 | Out-Null  # hibernate after 180 minutes
+try {
+    # AC (plugged in)
+    powercfg /change monitor-timeout-ac 10    | Out-Null  # display off after 10 minutes
+    powercfg /change standby-timeout-ac 30    | Out-Null  # sleep after 30 minutes
+    powercfg /change hibernate-timeout-ac 180 | Out-Null  # hibernate after 180 minutes
 
-        # DC (battery)
-        powercfg /change monitor-timeout-dc 5     | Out-Null  # display off after 5 minutes
-        powercfg /change standby-timeout-dc 15    | Out-Null  # sleep after 15 minutes
-        powercfg /change hibernate-timeout-dc 60  | Out-Null  # hibernate after 60 minutes
+    # DC (battery)
+    powercfg /change monitor-timeout-dc 5     | Out-Null  # display off after 5 minutes
+    powercfg /change standby-timeout-dc 15    | Out-Null  # sleep after 15 minutes
+    powercfg /change hibernate-timeout-dc 60  | Out-Null  # hibernate after 60 minutes
 
-        Write-Host "[INFO] Timeout configuration commands were issued successfully (no exception)." -ForegroundColor Green
-    }
-    catch {
-        Write-Warning "[WARN] One or more timeout settings could not be changed: $($_.Exception.Message)"
-        Write-Warning "[WARN] This may be blocked by group policy or local security settings."
-    }
+    Write-Host "[INFO] Timeout configuration commands were issued (some values may still be blocked by policy)." -ForegroundColor Green
 }
-else {
-    Write-Warning "[SKIP] Skipping timeout changes (powercfg /change ...) because script is NOT running as Administrator."
+catch {
+    Write-Warning "[WARN] One or more timeout settings could not be changed: $($_.Exception.Message)"
+    Write-Warning "[WARN] This may require Administrator rights or may be blocked by group policy."
 }
 
 # --------------------------------------------------------------------
 # SUMMARY
 # --------------------------------------------------------------------
 Write-Host ""
-Write-Host "[SUMMARY] Power Saver configuration step-by-step finished." -ForegroundColor Green
+Write-Host "[SUMMARY] Power Saver configuration steps finished (best effort)." -ForegroundColor Green
 if (-not $IsAdmin) {
-    Write-Host "[NOTE] Because this run was NOT elevated, all admin-only steps have been skipped (Hibernate enable, HKLM registry, power plan, timeouts)." -ForegroundColor Yellow
-    Write-Host "[NOTE] Run this script as Administrator to actually apply those changes." -ForegroundColor Yellow
+    Write-Host "[NOTE] Admin-only steps (Hibernate enable, HKLM registry) were skipped. Other powercfg operations were attempted and may partially succeed depending on policy." -ForegroundColor Yellow
 }
 
 Write-Host ""
