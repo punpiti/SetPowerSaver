@@ -1,75 +1,162 @@
-# RunKeepAliveMaxPerf.ps1  -- Windows PowerShell 5.x compatible
+# RunKeepAliveMaxPerf.ps1  -- Windows PowerShell 5.x
+# --------------------------------------------------------------------
 # Purpose:
-#   Temporary "long-run" mode for heavy jobs:
-#     - Prevent idle Sleep/Hibernate via Win32 execution state heartbeat.
-#     - Switch to High performance plan while running.
-#     - Attempt to push CPU min/max to 100% (if allowed by policy/OEM).
-#   When you close this window, the original plan is restored automatically.
+#   - Keep the system awake (no idle sleep / display-off) while running.
+#   - If running with Administrator privileges, temporarily switch
+#     the active power plan to "High performance" (SCHEME_MIN) and
+#     restore the original plan safely when the script stops
+#     (including Ctrl+C).
+#
 # Notes:
-#   - Run with "Right-click > Run with PowerShell".
-#   - Some powercfg settings may require Administrator or be blocked by policy/OEM.
-#   - This prevents idle sleep/hibernate only; user actions (e.g., closing the lid, shutdown /h) are not blocked.
+#   - SetThreadExecutionState is per-thread and does NOT require admin.
+#   - powercfg /setactive and some power changes typically DO require admin.
+#   - This script is designed to degrade gracefully when not run as admin:
+#       * Keep-alive still works.
+#       * Power plan is not changed.
+#       * No restore is attempted.
+# --------------------------------------------------------------------
 
-$ErrorActionPreference = 'Continue'
-$host.UI.RawUI.WindowTitle = "KeepAlive + Max Performance (active)"
+$ErrorActionPreference = 'Stop'
+$host.UI.RawUI.WindowTitle = "KeepAlive + Max Performance (PS5)"
 
-# Save current plan GUID
-$orig = powercfg /getactivescheme
+# --------------------------------------------------------------------
+# Function: Test-IsAdmin
+# --------------------------------------------------------------------
+function Test-IsAdmin {
+    $principal = New-Object Security.Principal.WindowsPrincipal `
+        ([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $principal.IsInRole(
+        [Security.Principal.WindowsBuiltInRole]::Administrator
+    )
+}
+
+$IsAdmin = Test-IsAdmin
+
+if ($IsAdmin) {
+    Write-Host "[INFO] Running with Administrator privileges." -ForegroundColor Green
+} else {
+    Write-Warning "[WARN] Not running as Administrator. Power plan change (High performance / restore) will be skipped. Keep-alive only."
+}
+
+# --------------------------------------------------------------------
+# Add the Win32 API: SetThreadExecutionState
+#   ใช้ -TypeDefinition อย่างเดียว ไม่ใส่ -Name/-Namespace
+#   และใช้ single-quoted here-string เพื่อเลี่ยงปัญหา escape/quote
+# --------------------------------------------------------------------
+if (-not ("PowerNative" -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class PowerNative {
+    [DllImport("kernel32.dll")]
+    public static extern uint SetThreadExecutionState(uint esFlags);
+}
+'@
+}
+
+# Flags for SetThreadExecutionState
+$ES_CONTINUOUS       = [uint32]2147483648
+$ES_SYSTEM_REQUIRED  = [uint32]1
+$ES_DISPLAY_REQUIRED = [uint32]2
+
+
+
+# --------------------------------------------------------------------
+# Capture the current active power plan GUID (best effort).
+# --------------------------------------------------------------------
 $origGuid = $null
-if ($orig -match '{([0-9a-fA-F-]+)}') { $origGuid = $Matches[1] }
-
 try {
-    # Switch to High performance
-    Write-Host "Switching to High performance plan..." -ForegroundColor Cyan
-    powercfg /setactive SCHEME_MAX | Out-Null
+    $out = powercfg /getactivescheme 2>$null
+    if ($LASTEXITCODE -eq 0 -and $out) {
+        # Expected format:
+        #   "Power Scheme GUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  (Friendly name)"
+        $tokens = $out -split '\s+'
+        foreach ($tok in $tokens) {
+            if ($tok -match '^[0-9a-fA-F-]{36}$') {
+                $origGuid = $tok
+                break
+            }
+        }
+    } else {
+        Write-Warning "[WARN] powercfg /getactivescheme returned non-zero exit code."
+    }
+}
+catch {
+    Write-Warning "[WARN] Exception while reading original power plan: $($_.Exception.Message)"
+}
 
-    # Try to set CPU min/max = 100% (GUID constants)
-    # SUB_PROCESSOR       = 54533251-82be-4824-96c1-47b60b740d00
-    # MINPROC (Min state) = 893dee8e-2bef-41e0-89c6-b55d0929964c
-    # MAXPROC (Max state) = bc5038f7-23e0-4960-96da-33abaf5935ec
-    $SUB_PROCESSOR = '54533251-82be-4824-96c1-47b60b740d00'
-    $MINPROC       = '893dee8e-2bef-41e0-89c6-b55d0929964c'
-    $MAXPROC       = 'bc5038f7-23e0-4960-96da-33abaf5935ec'
+Write-Host "[INFO] Original power plan GUID: $origGuid" -ForegroundColor DarkCyan
 
-    Write-Host "Pushing CPU min/max to 100% (AC/DC)..." -ForegroundColor Cyan
-    try {
-        powercfg /SETACVALUEINDEX SCHEME_CURRENT $SUB_PROCESSOR $MINPROC 100 | Out-Null
-        powercfg /SETACVALUEINDEX SCHEME_CURRENT $SUB_PROCESSOR $MAXPROC 100 | Out-Null
-        powercfg /SETDCVALUEINDEX SCHEME_CURRENT $SUB_PROCESSOR $MINPROC 100 | Out-Null
-        powercfg /SETDCVALUEINDEX SCHEME_CURRENT $SUB_PROCESSOR $MAXPROC 100 | Out-Null
-        powercfg /SETACTIVE SCHEME_CURRENT | Out-Null
-    } catch {
-        Write-Host "Warning: CPU indices could not be set (admin/policy/OEM lock). Continuing..." -ForegroundColor Yellow
+# --------------------------------------------------------------------
+# Main logic: try/finally so that cleanup & restore happen even
+# when user presses Ctrl+C or an error occurs.
+# --------------------------------------------------------------------
+try {
+    # --- Attempt to switch power plan (admin only) ---
+    if ($IsAdmin) {
+        Write-Host ""
+        Write-Host "[INFO] Switching to High performance plan (SCHEME_MIN)..." -ForegroundColor Cyan
+        powercfg /setactive SCHEME_MIN 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "[WARN] Failed to switch to SCHEME_MIN. Continuing with current plan."
+        } else {
+            Write-Host "[INFO] High performance plan requested." -ForegroundColor Green
+        }
+    } else {
+        Write-Host ""
+        Write-Host "[INFO] Running without admin rights - power plan will NOT be changed." -ForegroundColor Yellow
     }
 
-    # Prepare Win32 API heartbeat (use decimal to avoid signed int issues on PS5)
-    $sig = '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);'
-    try { Add-Type -MemberDefinition $sig -Name P -Namespace Win32 -ErrorAction Stop } catch {}
+    # --- Enable keep-alive behavior ---
+    Write-Host "[INFO] Disabling idle sleep / display-off while this script runs..." -ForegroundColor Cyan
+    [PowerNative]::SetThreadExecutionState(
+        $ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED -bor $ES_DISPLAY_REQUIRED
+    ) | Out-Null
 
-    $ES_CONTINUOUS      = [uint32]2147483648  # 0x80000000
-    $ES_SYSTEM_REQUIRED = [uint32]1           # 0x00000001
-    # $ES_DISPLAY_REQUIRED = [uint32]2        # 0x00000002 (uncomment to also keep display on)
+    Write-Host ""
+    Write-Host "[INFO] KeepAlive is now active." -ForegroundColor Green
+    if ($IsAdmin) {
+        Write-Host "[INFO] If the 'High performance' switch succeeded, the system is now in max performance mode." -ForegroundColor Green
+    }
+    Write-Host "[INFO] Press Ctrl+C in this window to stop and trigger restore/cleanup." -ForegroundColor Yellow
+    Write-Host ""
 
-    Write-Host "KeepAlive is ACTIVE. Close this window to restore defaults." -ForegroundColor Green
-
+    # Main wait loop
     while ($true) {
-        [Win32.P]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED) | Out-Null
-        Write-Host ("[{0}] heartbeat" -f (Get-Date -Format "HH:mm:ss")) -ForegroundColor Gray
         Start-Sleep -Seconds 60
     }
 }
 catch {
-    Write-Host "`nERROR: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "[ERROR] $($_.Exception.Message)" -ForegroundColor Red
 }
 finally {
-    Write-Host "`nRestoring original power plan..." -ForegroundColor Cyan
-    if ($origGuid) { powercfg /setactive $origGuid | Out-Null }
-    else { powercfg /setactive SCHEME_BALANCED | Out-Null }
+    Write-Host ""
+    Write-Host "[INFO] Cleaning up execution state..." -ForegroundColor Cyan
 
-    # Clear execution state back to default
-    [Win32.P]::SetThreadExecutionState([uint32]2147483648) | Out-Null
+    # Clear the display/system required bits, leaving only ES_CONTINUOUS.
+    [PowerNative]::SetThreadExecutionState($ES_CONTINUOUS) | Out-Null
 
-    Write-Host "Restored. System back to normal power behavior." -ForegroundColor Green
-    Write-Host "`nPress Enter to close this window..."
-    [void](Read-Host)
+    if ($IsAdmin) {
+        Write-Host "[INFO] Restoring original power plan..." -ForegroundColor Cyan
+
+        if ($origGuid) {
+            powercfg /setactive $origGuid 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "[WARN] Failed to restore original plan by GUID. Falling back to Balanced (SCHEME_BALANCED)."
+                powercfg /setactive SCHEME_BALANCED 2>$null
+            } else {
+                Write-Host "[INFO] Original power plan restored successfully." -ForegroundColor Green
+            }
+        } else {
+            Write-Warning "[WARN] No original plan GUID captured. Using Balanced (SCHEME_BALANCED) as fallback."
+            powercfg /setactive SCHEME_BALANCED 2>$null
+        }
+    } else {
+        Write-Host "[INFO] No power plan change was performed (no admin rights), so no restore is needed." -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Read-Host "Press Enter to close this window"
 }
