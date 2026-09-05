@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Temporary Laptop Modes</title>
+  <desc id="desc">Power settings for this moment.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111a3a"/><stop offset="1" stop-color="#251741"/></linearGradient>
+    <radialGradient id="blue" cx="0" cy="0" r="1" gradientTransform="translate(105 70) rotate(35) scale(640 480)"><stop stop-color="#5f8fff" stop-opacity=".55"/><stop offset="1" stop-color="#5f8fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="icon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9fc4ff"/><stop offset="1" stop-color="#c9a8ff"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="22" stdDeviation="24" flood-color="#050914" flood-opacity=".45"/></filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#blue)"/>
+  <circle cx="1080" cy="85" r="300" fill="#a777ff" opacity=".12"/>
+  <g transform="translate(850 185)" filter="url(#shadow)">
+    <circle cx="130" cy="130" r="130" fill="url(#icon)"/>
+    <rect x="57" y="72" width="146" height="98" rx="12" fill="#18234b"/>
+    <rect x="67" y="82" width="126" height="70" rx="6" fill="#8eb8ff" opacity=".9"/>
+    <path d="M35 181h190l20 35H15z" fill="#18234b"/>
+    <circle cx="178" cy="153" r="43" fill="#f4f7ff"/>
+    <path d="M178 127v28l19 12" fill="none" stroke="#455386" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="92" y="147" fill="#99baff" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="4">WINDOWS SYSTEM-TRAY UTILITY</text>
+  <text x="84" y="276" fill="#f0f3ff" font-family="Segoe UI, Arial, sans-serif" font-size="78" font-weight="700" letter-spacing="-3">Temporary Laptop Modes</text>
+  <text x="88" y="358" fill="#c3cce5" font-family="Segoe UI, Arial, sans-serif" font-size="36">Power settings for this moment.</text>
+  <line x1="90" y1="435" x2="647" y2="435" stroke="#b9c9fa" stroke-opacity=".28"/>
+  <text x="90" y="492" fill="#d9e4ff" font-family="Segoe UI, Arial, sans-serif" font-size="28">Choose a temporary mode. Restore automatically.</text>
+</svg>
