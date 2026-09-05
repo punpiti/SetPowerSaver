@@ -46,7 +46,7 @@
       .brand { color: var(--ink); font-weight: 650; text-decoration: none; letter-spacing: -.02em; }
       .source { color: var(--muted); text-decoration: none; font-size: .92rem; }
       .source:hover { color: var(--ink); }
-      .hero { padding: 76px 0 94px; max-width: 760px; }
+      .hero { padding: 76px 0 70px; max-width: 760px; }
       .eyebrow { color: var(--blue); text-transform: uppercase; letter-spacing: .12em; font-size: .77rem; font-weight: 700; }
       h1 { font-size: clamp(3rem, 8vw, 6.4rem); line-height: .98; letter-spacing: -.065em; margin: 14px 0 26px; }
       .lead { color: var(--muted); font-size: clamp(1.12rem, 2vw, 1.35rem); max-width: 650px; margin: 0; }
@@ -56,6 +56,12 @@
       .button.secondary { color: var(--ink); border: 1px solid var(--line); background: rgba(255,255,255,.05); }
       .button:hover { filter: brightness(1.09); }
       .availability { color: var(--muted); font-size: .88rem; margin: 16px 0 0; }
+      .showcase { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: clamp(30px, 7vw, 90px); align-items: center; border-top: 0; padding: 10px 0 88px; }
+      .showcase-copy { max-width: 535px; }
+      .showcase h2 { font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.02; margin: 12px 0 16px; }
+      .showcase p { color: var(--muted); margin: 0; font-size: 1.05rem; }
+      .product-shot { width: 100%; max-width: 390px; justify-self: end; border: 1px solid rgba(255,255,255,.22); border-radius: 17px; box-shadow: 0 30px 60px rgba(0,0,0,.32); display: block; }
+      .notice { margin-top: 26px; max-width: 385px; border-radius: 12px; box-shadow: 0 16px 35px rgba(0,0,0,.2); display: block; }
       section { border-top: 1px solid var(--line); padding: 48px 0; }
       h2 { letter-spacing: -.035em; font-size: 1.7rem; margin: 0 0 10px; }
       .section-lead { color: var(--muted); margin: 0 0 26px; max-width: 670px; }
@@ -73,7 +79,9 @@
         main { width: min(100% - 28px, 1080px); }
         header { padding: 18px 0; }
         .hero { padding: 54px 0 62px; }
-        .grid, .two-col { grid-template-columns: 1fr; }
+        .grid, .two-col, .showcase { grid-template-columns: 1fr; }
+        .showcase { padding-bottom: 62px; }
+        .product-shot { justify-self: start; max-width: 360px; }
       }
       @media (prefers-color-scheme: light) {
         :root { --ink: #17203c; --muted: #53617f; --surface: rgba(255,255,255,.72); --line: rgba(31, 47, 89, .15); }
@@ -99,6 +107,16 @@
           <a class="button secondary" href="https://github.com/punpiti/SetPowerSaver">PowerShell CLI &amp; source ↗</a>
         </div>
         <p class="availability">Microsoft Store release is currently in certification. The Store link will become available once it is published.</p>
+      </section>
+
+      <section class="showcase">
+        <div class="showcase-copy">
+          <div class="eyebrow">Right-click. Choose. Continue.</div>
+          <h2>Designed for temporary changes.</h2>
+          <p>No hunting through Windows settings and no need to remember how to undo a change. The tray menu makes the active status, each mode, and the return to normal clear at a glance.</p>
+          <img class="notice" src="assets/quiet-notification.webp" width="770" height="250" alt="Windows notification: Quiet is active and will restore automatically at 18:08.">
+        </div>
+        <img class="product-shot" src="assets/tray-menu.webp" width="780" height="970" alt="Temporary Laptop Modes system-tray menu showing status, Focus, Coding, Presentation, Battery, Quiet, Compile Boost, and Restore normal.">
       </section>
 
       <section>
