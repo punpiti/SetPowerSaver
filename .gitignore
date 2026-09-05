@@ -1,2 +1,13 @@
 GitUpdate.ps1
 git_update.sh
+bin/
+obj/
+artifacts/
+TemporaryLaptopModes/bin/
+TemporaryLaptopModes/obj/
+
+# Local agent instructions and project-state notes
+.ai/
+AGENTS.md
+ANTIGRAVITY.md
+CLAUDE.md
