@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Temporary Laptop Modes gives Windows laptops temporary power settings that restore automatically.">
+    <title>Temporary Laptop Modes</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        --ink: #edf1ff;
+        --muted: #b8c1dc;
+        --surface: rgba(20, 26, 49, .72);
+        --line: rgba(222, 229, 255, .16);
+        --blue: #7ba8ff;
+        --violet: #ad8cff;
+        --green: #67d7a1;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        font: 16px/1.55 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+        background:
+          radial-gradient(circle at 10% 0%, rgba(99, 138, 255, .34), transparent 34rem),
+          radial-gradient(circle at 85% 20%, rgba(169, 113, 255, .25), transparent 29rem),
+          #0c1021;
+      }
+      main { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+      header { padding: 30px 0; display: flex; justify-content: space-between; align-items: center; }
+      .brand { color: var(--ink); font-weight: 650; text-decoration: none; letter-spacing: -.02em; }
+      .source { color: var(--muted); text-decoration: none; font-size: .92rem; }
+      .source:hover { color: var(--ink); }
+      .hero { padding: 76px 0 94px; max-width: 760px; }
+      .eyebrow { color: var(--blue); text-transform: uppercase; letter-spacing: .12em; font-size: .77rem; font-weight: 700; }
+      h1 { font-size: clamp(3rem, 8vw, 6.4rem); line-height: .98; letter-spacing: -.065em; margin: 14px 0 26px; }
+      .lead { color: var(--muted); font-size: clamp(1.12rem, 2vw, 1.35rem); max-width: 650px; margin: 0; }
+      .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
+      .button { display: inline-flex; align-items: center; gap: 9px; border-radius: 9px; padding: 12px 17px; text-decoration: none; font-weight: 650; }
+      .button.primary { color: #0d1020; background: linear-gradient(135deg, #9ec0ff, #c5a6ff); }
+      .button.secondary { color: var(--ink); border: 1px solid var(--line); background: rgba(255,255,255,.05); }
+      .button:hover { filter: brightness(1.09); }
+      .availability { color: var(--muted); font-size: .88rem; margin: 16px 0 0; }
+      section { border-top: 1px solid var(--line); padding: 48px 0; }
+      h2 { letter-spacing: -.035em; font-size: 1.7rem; margin: 0 0 10px; }
+      .section-lead { color: var(--muted); margin: 0 0 26px; max-width: 670px; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .card { min-height: 165px; border: 1px solid var(--line); border-radius: 14px; padding: 20px; background: var(--surface); }
+      .glyph { display: grid; place-items: center; width: 33px; height: 33px; margin-bottom: 14px; border-radius: 50%; color: #fff; font-weight: 700; font-size: .85rem; }
+      .focus { background: #7756df; } .coding { background: #3e7be8; } .presentation { background: #f39628; }
+      .battery { background: #37a96b; } .quiet { background: #4448c5; } .boost { background: #df3959; }
+      .card h3 { margin: 0 0 3px; font-size: 1rem; }
+      .card p { margin: 0; color: var(--muted); font-size: .91rem; }
+      .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+      code { color: #d9e5ff; font-family: "Cascadia Code", Consolas, monospace; font-size: .9em; }
+      footer { color: var(--muted); font-size: .86rem; padding: 22px 0 42px; }
+      @media (max-width: 700px) {
+        main { width: min(100% - 28px, 1080px); }
+        header { padding: 18px 0; }
+        .hero { padding: 54px 0 62px; }
+        .grid, .two-col { grid-template-columns: 1fr; }
+      }
+      @media (prefers-color-scheme: light) {
+        :root { --ink: #17203c; --muted: #53617f; --surface: rgba(255,255,255,.72); --line: rgba(31, 47, 89, .15); }
+        body { background: radial-gradient(circle at 10% 0%, #cfdeff, transparent 34rem), radial-gradient(circle at 85% 20%, #ebdbff, transparent 29rem), #f5f7ff; }
+        .button.secondary { background: rgba(255,255,255,.65); }
+        code { color: #263f85; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a class="brand" href="./">Temporary Laptop Modes</a>
+        <a class="source" href="https://github.com/punpiti/SetPowerSaver">View source on GitHub ↗</a>
+      </header>
+
+      <section class="hero">
+        <div class="eyebrow">Windows system-tray utility</div>
+        <h1>Power settings<br>for this moment.</h1>
+        <p class="lead">Choose a temporary laptop mode for work, travel, teaching, or a quiet overnight task. Your previous Windows power settings are restored automatically when you are done.</p>
+        <div class="actions">
+          <a class="button primary" href="https://apps.microsoft.com/detail/9MZJCVCWB1SH">Get it from Microsoft Store ↗</a>
+          <a class="button secondary" href="https://github.com/punpiti/SetPowerSaver">PowerShell CLI &amp; source ↗</a>
+        </div>
+        <p class="availability">Microsoft Store release is currently in certification. The Store link will become available once it is published.</p>
+      </section>
+
+      <section>
+        <h2>A mode for the situation, not a permanent tweak.</h2>
+        <p class="section-lead">Pick from the system tray. The app remembers the current power settings first, then restores them when the temporary mode ends, when power is connected in Battery mode, or when you choose Restore normal.</p>
+        <div class="grid">
+          <article class="card"><div class="glyph focus">F</div><h3>Focus</h3><p>Write, read, watch stocks, or leave a dashboard open.</p></article>
+          <article class="card"><div class="glyph coding">C</div><h3>Coding</h3><p>Editors, terminals, and moderate development work.</p></article>
+          <article class="card"><div class="glyph presentation">P</div><h3>Presentation</h3><p>Keep the screen awake for class, meetings, and screen sharing.</p></article>
+          <article class="card"><div class="glyph battery">B</div><h3>Battery</h3><p>Save power until the laptop is plugged in.</p></article>
+          <article class="card"><div class="glyph quiet">Q</div><h3>Quiet</h3><p>Keep a server, download, or long job awake with restrained power use.</p></article>
+          <article class="card"><div class="glyph boost">+</div><h3>Compile Boost</h3><p>Short burst of high performance for demanding builds and tests.</p></article>
+        </div>
+      </section>
+
+      <section class="two-col">
+        <div>
+          <h2>Simple by design.</h2>
+          <p class="section-lead">No account, analytics, cloud sync, advertising, or network service. The app changes local Windows power settings only after you choose a mode.</p>
+        </div>
+        <div>
+          <h2>Prefer a terminal?</h2>
+          <p class="section-lead">The repository also includes <code>SetPowerMode.ps1</code>, a PowerShell command-line companion with the same human-centered modes.</p>
+        </div>
+      </section>
+
+      <footer>Built by <a class="source" href="https://github.com/punpiti">Punpiti</a> · Open source under the MIT License</footer>
+    </main>
+  </body>
+</html>
