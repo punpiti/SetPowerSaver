@@ -11,10 +11,10 @@ namespace TemporaryLaptopModes;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
-        Application.Run(new TrayApplication());
+        Application.Run(new TrayApplication(args.Contains("--startup", StringComparer.OrdinalIgnoreCase)));
     }
 }
 
@@ -24,16 +24,19 @@ internal sealed class TrayApplication : ApplicationContext
     private const int PresentationMinutes = 120;
     private const int QuietMinutes = 480;
     private const int CompileBoostMinutes = 45;
+    private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string StartupRegistryValueName = "TemporaryLaptopModes";
 
     private readonly NotifyIcon _trayIcon;
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripLabel _statusItem;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly string _statePath;
+    private ToolStripMenuItem? _startupItem;
     private ActiveMode? _active;
     private bool _restoring;
 
-    public TrayApplication()
+    public TrayApplication(bool startedWithWindows)
     {
         _statePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -55,7 +58,8 @@ internal sealed class TrayApplication : ApplicationContext
         _timer.Start();
 
         RestoreInterruptedMode();
-        Notify("Temporary Laptop Modes is ready", "Right-click the tray icon to choose a temporary mode.");
+        if (!startedWithWindows)
+            Notify("Temporary Laptop Modes is ready", "Right-click the tray icon to choose a temporary mode.");
     }
 
     private ContextMenuStrip BuildMenu(out ToolStripLabel statusItem)
@@ -65,7 +69,11 @@ internal sealed class TrayApplication : ApplicationContext
         menu.ShowCheckMargin = false;
         menu.Padding = new Padding(7, 7, 7, 6);
         menu.ImageScalingSize = new Size(22, 22);
-        menu.Opening += (_, _) => ApplyMenuTheme(menu);
+        menu.Opening += (_, _) =>
+        {
+            UpdateStartupMenuItem();
+            ApplyMenuTheme(menu);
+        };
 
         statusItem = new ToolStripLabel
         {
@@ -88,11 +96,21 @@ internal sealed class TrayApplication : ApplicationContext
         menu.Items.Add(CreateModeItem("Quiet", "Server / long job · 8 hours", Color.MidnightBlue, "Q", ModeKind.Quiet));
         menu.Items.Add(CreateModeItem("Compile Boost", "High performance · 45 min", Color.Crimson, "+", ModeKind.CompileBoost));
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(CreateSectionLabel("APP SETTINGS"));
+        menu.Items.Add(CreateStartupItem());
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(CreateActionItem("Restore normal now", "Return to the saved power settings", Color.SlateGray, "N", (_, _) => Restore("Restored by you")));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(CreateActionItem("Exit", "Restore first, then close", Color.IndianRed, "×", (_, _) => ExitThread()));
         ApplyMenuTheme(menu);
         return menu;
+    }
+
+    private ToolStripMenuItem CreateStartupItem()
+    {
+        _startupItem = CreateActionItem("Start with Windows", "Launch when you sign in", Color.SlateGray, "→", (_, _) => ToggleStartWithWindows());
+        UpdateStartupMenuItem();
+        return _startupItem;
     }
 
     private ToolStripLabel CreateSectionLabel(string text) => new()
@@ -122,6 +140,59 @@ internal sealed class TrayApplication : ApplicationContext
         Padding = new Padding(4, 1, 4, 1),
         ToolTipText = description
     }.Also(item => item.Click += action);
+
+    private void ToggleStartWithWindows()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(StartupRegistryPath, writable: true);
+            if (IsStartWithWindowsEnabled())
+            {
+                key.DeleteValue(StartupRegistryValueName, throwOnMissingValue: false);
+                Notify("Start with Windows is off", "Temporary Laptop Modes will open only when you start it.");
+            }
+            else
+            {
+                key.SetValue(StartupRegistryValueName, GetStartupCommand(), RegistryValueKind.String);
+                Notify("Start with Windows is on", "Temporary Laptop Modes will open quietly when you sign in.");
+            }
+            UpdateStartupMenuItem();
+        }
+        catch (Exception ex)
+        {
+            Notify("Could not update startup", ex.Message);
+        }
+    }
+
+    private static bool IsStartWithWindowsEnabled()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath);
+        return key?.GetValue(StartupRegistryValueName) is string value && !string.IsNullOrWhiteSpace(value);
+    }
+
+    private static string GetStartupCommand()
+    {
+        var executable = Environment.ProcessPath ?? Application.ExecutablePath;
+        var arguments = Environment.GetCommandLineArgs()
+            .Skip(1)
+            .Where(argument => !string.Equals(argument, "--startup", StringComparison.OrdinalIgnoreCase))
+            .Select(QuoteCommandArgument)
+            .Append("--startup");
+        return $"{QuoteCommandArgument(executable)} {string.Join(" ", arguments)}";
+    }
+
+    private static string QuoteCommandArgument(string value) => '"' + value.Replace("\"", "\\\"") + '"';
+
+    private void UpdateStartupMenuItem()
+    {
+        if (_startupItem is null) return;
+        var enabled = IsStartWithWindowsEnabled();
+        _startupItem.Text = enabled
+            ? "Start with Windows\nOn · launch when you sign in"
+            : "Start with Windows\nOff · launch only when you open it";
+        _startupItem.Image = CreateMenuGlyph(enabled ? Color.SeaGreen : Color.SlateGray, enabled ? "✓" : "→");
+        _startupItem.ToolTipText = enabled ? "Disable Start with Windows" : "Enable Start with Windows";
+    }
 
     private void StartMode(ModeKind mode)
     {
