@@ -16,11 +16,18 @@ function Test-IsAdmin {
 }
 
 function Invoke-PowerCfg {
-    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        # Some settings are hidden on OEM plans; a failure there is expected and
+        # must not fill the console with warnings.
+        [switch]$Optional
+    )
 
     & powercfg @Arguments 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "powercfg $($Arguments -join ' ') failed (exit code $LASTEXITCODE). The setting may be unavailable or managed by policy."
+        if (-not $Optional) {
+            Write-Warning "powercfg $($Arguments -join ' ') failed (exit code $LASTEXITCODE). The setting may be unavailable or managed by policy."
+        }
         return $false
     }
     return $true
@@ -43,18 +50,51 @@ function Set-Timeouts {
 function Set-ProcessorLimits {
     param(
         [int]$MaximumAc, [int]$MaximumDc,
-        [ValidateSet('Unchanged', 'Disabled', 'Enabled')][string]$Boost = 'Unchanged'
+        [ValidateSet('Unchanged', 'Disabled', 'Enabled')][string]$Boost = 'Unchanged',
+        [int]$Minimum = 5
     )
 
     foreach ($source in 'ac', 'dc') {
         $maximum = if ($source -eq 'ac') { $MaximumAc } else { $MaximumDc }
-        Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PROCTHROTTLEMIN', 5) | Out-Null
+        Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PROCTHROTTLEMIN', $Minimum) | Out-Null
         Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PROCTHROTTLEMAX', $maximum) | Out-Null
         if ($Boost -ne 'Unchanged') {
             # Turbo Boost commonly causes abrupt fan noise. Value 0 disables it;
             # 2 is Windows' normal Aggressive/Enabled behaviour.
             $boostValue = if ($Boost -eq 'Disabled') { 0 } else { 2 }
-            Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PERFBOOSTMODE', $boostValue) | Out-Null
+            # Hidden on some OEM plans; the throttle limits still apply.
+            Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PERFBOOSTMODE', $boostValue) -Optional | Out-Null
+        }
+    }
+}
+
+function Set-TurboPerformance {
+    # Switching to High performance is not enough: a quiet mode that ran while
+    # that plan was active leaves PROCTHROTTLEMAX and Turbo Boost capped in it,
+    # which pins the CPU to its base clock. Clear every cap explicitly.
+    Set-ProcessorLimits 100 100 -Boost Enabled -Minimum 100
+
+    foreach ($source in 'ac', 'dc') {
+        # Hidden on most plans: an absolute MHz ceiling. 0 means "no limit".
+        Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PROCFREQMAX', 0) -Optional | Out-Null
+        Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PROCFREQMAX1', 0) -Optional | Out-Null
+        # Energy preference: 0 asks the CPU for maximum performance.
+        Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'PERFEPP', 0) -Optional | Out-Null
+        # Active cooling lets the fan work before the CPU is throttled back.
+        Invoke-PowerCfg @("/set${source}valueindex", 'scheme_current', 'sub_processor', 'SYSCOOLPOL', 1) -Optional | Out-Null
+    }
+
+    Invoke-PowerCfg @('/setactive', 'scheme_current') | Out-Null
+}
+
+function Show-ProcessorState {
+    foreach ($setting in 'PROCTHROTTLEMIN', 'PROCTHROTTLEMAX', 'PERFBOOSTMODE', 'PROCFREQMAX') {
+        $output = & powercfg /query scheme_current sub_processor $setting 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $output) { continue }
+        $match = [regex]::Match(($output -join "`n"), 'Current AC Power Setting Index:\s+0x([0-9a-fA-F]+)')
+        if ($match.Success) {
+            $value = [Convert]::ToUInt32($match.Groups[1].Value, 16)
+            Write-Host ("[AC] {0,-15} {1}" -f $setting, $value) -ForegroundColor DarkGray
         }
     }
 }
@@ -105,8 +145,10 @@ public static class PowerNative {
         if ($IsAdmin) {
             Write-Host '[INFO] Switching temporarily to High performance...' -ForegroundColor Cyan
             Invoke-PowerCfg @('/setactive', 'SCHEME_MIN') | Out-Null
+            Set-TurboPerformance
+            Show-ProcessorState
         } else {
-            Write-Warning 'Not elevated: Keep Alive will work, but the power plan will not change.'
+            Write-Warning 'Not elevated: Keep Alive will work, but the power plan and CPU limits will not change. Turbo mode needs Administrator.'
         }
 
         [PowerNative]::SetThreadExecutionState(

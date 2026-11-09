@@ -17,14 +17,17 @@ power settings first and restores them automatically when the mode ends.
 
 ## Modes
 
-| Mode | For |
-| --- | --- |
-| Focus | Writing, reading, stocks, and dashboards |
-| Coding | Editors, terminals, and moderate builds |
-| Presentation | Teaching, meetings, and screen sharing |
-| Battery | Saving power until the charger is connected |
-| Quiet | Servers, downloads, and long-running work |
-| Compile Boost | A short burst for demanding builds and tests |
+| Mode | For | What it changes | Ends after |
+| --- | --- | --- | --- |
+| Focus | Writing, reading, stocks, and dashboards | CPU capped at 60% AC / 50% battery, Turbo Boost off, screen and PC stay awake | 90 min |
+| Coding | Editors, terminals, and moderate builds | CPU capped at 75% AC / 60% battery, Turbo Boost off; timeouts untouched | 90 min |
+| Presentation | Teaching, meetings, and screen sharing | CPU capped at 75% AC / 60% battery, Turbo Boost off, screen and PC stay awake | 2 hours |
+| Battery | Saving power until the charger is connected | CPU capped at 50% AC / 40% battery, Turbo Boost off, display/sleep/hibernate at 5/15/60 min | Plugging in |
+| Quiet | Servers, downloads, and long-running work | CPU capped at 50% AC / 40% battery, Turbo Boost off, display off after 1 min, no sleep | 8 hours |
+| Compile Boost | A short burst for demanding builds and tests | High performance plan with every CPU cap cleared: 100% minimum and maximum, Turbo Boost aggressive, no frequency ceiling, active cooling; screen stays on | 45 min |
+
+Turbo Boost is off in the quieter modes because it is the usual cause of sudden
+fan noise. Compile Boost is the one mode that turns it back on.
 
 The menu follows the Windows light/dark preference, shows the active mode and
 restore condition, and offers **Restore normal** at any time.

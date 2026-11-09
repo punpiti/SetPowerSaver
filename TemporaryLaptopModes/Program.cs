@@ -78,7 +78,7 @@ internal sealed class TrayApplication : ApplicationContext
         statusItem = new ToolStripLabel
         {
             AutoSize = false,
-            Size = new Size(300, 52),
+            Size = new Size(340, 52),
             Font = new Font(FontFamily.GenericSansSerif, 10, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
             ImageAlign = ContentAlignment.MiddleLeft,
@@ -89,12 +89,18 @@ internal sealed class TrayApplication : ApplicationContext
         menu.Items.Add(statusItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(CreateSectionLabel("START A TEMPORARY MODE"));
-        menu.Items.Add(CreateModeItem("Focus", "Write · read · stocks", Color.MediumSlateBlue, "F", ModeKind.Focus));
-        menu.Items.Add(CreateModeItem("Coding", "Editor · terminal · builds", Color.RoyalBlue, "C", ModeKind.Coding));
-        menu.Items.Add(CreateModeItem("Presentation", "Keep screen on · 2 hours", Color.DarkOrange, "P", ModeKind.Presentation));
-        menu.Items.Add(CreateModeItem("Battery", "Save power until plugged in", Color.SeaGreen, "B", ModeKind.Battery));
-        menu.Items.Add(CreateModeItem("Quiet", "Server / long job · 8 hours", Color.MidnightBlue, "Q", ModeKind.Quiet));
-        menu.Items.Add(CreateModeItem("Compile Boost", "High performance · 45 min", Color.Crimson, "+", ModeKind.CompileBoost));
+        menu.Items.Add(CreateModeItem("Focus", "CPU 60% · screen stays on · 90 min", Color.MediumSlateBlue, "F", ModeKind.Focus,
+            "Writing, reading, stocks, and dashboards. Caps the CPU at 60% (50% on battery) and turns Turbo Boost off so the machine stays quiet, and keeps the screen and the PC awake so what you are watching stays visible. Restores after 90 minutes."));
+        menu.Items.Add(CreateModeItem("Coding", "CPU 75% · quieter fan · 90 min", Color.RoyalBlue, "C", ModeKind.Coding,
+            "Editors, terminals, and moderate builds. Caps the CPU at 75% (60% on battery) and turns Turbo Boost off, which is the main cause of sudden fan noise. Display and sleep timeouts are left as you have them. Restores after 90 minutes."));
+        menu.Items.Add(CreateModeItem("Presentation", "CPU 75% · screen stays on · 2 hours", Color.DarkOrange, "P", ModeKind.Presentation,
+            "Teaching, meetings, and screen sharing. Keeps the screen and the PC awake so nothing blanks mid-sentence, and caps the CPU at 75% (60% on battery) with Turbo Boost off so the fan stays out of the microphone. Restores after 2 hours."));
+        menu.Items.Add(CreateModeItem("Battery", "CPU 50% · short timeouts · until plugged in", Color.SeaGreen, "B", ModeKind.Battery,
+            "Stretching the charge. Caps the CPU at 50% (40% on battery), turns Turbo Boost off, and shortens the display, sleep, and hibernate timeouts to 5, 15, and 60 minutes. Restores by itself the moment you connect the charger."));
+        menu.Items.Add(CreateModeItem("Quiet", "CPU 50% · display off · awake 8 hours", Color.MidnightBlue, "Q", ModeKind.Quiet,
+            "Servers, downloads, and long overnight jobs. The PC never sleeps, the display turns off after a minute, and the CPU is capped at 50% (40% on battery) with Turbo Boost off so the work finishes quietly. Restores after 8 hours."));
+        menu.Items.Add(CreateModeItem("Compile Boost", "Full speed · Turbo on · 45 min", Color.Crimson, "+", ModeKind.CompileBoost,
+            "A short burst for demanding builds and tests. Switches to the Windows High performance plan and clears every CPU cap: minimum and maximum at 100%, Turbo Boost aggressive, no frequency limit, and active cooling. The screen stays on. Expect fan noise. Restores after 45 minutes."));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(CreateSectionLabel("APP SETTINGS"));
         menu.Items.Add(CreateStartupItem());
@@ -117,28 +123,30 @@ internal sealed class TrayApplication : ApplicationContext
     {
         Text = text,
         AutoSize = false,
-        Size = new Size(300, 24),
+        Size = new Size(340, 24),
         Font = new Font(FontFamily.GenericSansSerif, 7.5f, FontStyle.Bold),
         TextAlign = ContentAlignment.MiddleLeft,
         Margin = new Padding(8, 2, 3, 2)
     };
 
-    private ToolStripMenuItem CreateModeItem(string title, string description, Color color, string glyph, ModeKind mode) =>
-        CreateActionItem(title, description, color, glyph, (_, _) => StartMode(mode));
+    private ToolStripMenuItem CreateModeItem(string title, string description, Color color, string glyph, ModeKind mode, string detail) =>
+        CreateActionItem(title, description, color, glyph, (_, _) => StartMode(mode), detail);
 
-    private ToolStripMenuItem CreateActionItem(string title, string description, Color color, string glyph, EventHandler action) => new ToolStripMenuItem()
+    // The second line has to fit the menu, so it carries the numbers only.
+    // Hovering shows "detail": what the mode is for and what it changes.
+    private ToolStripMenuItem CreateActionItem(string title, string description, Color color, string glyph, EventHandler action, string? detail = null) => new ToolStripMenuItem()
     {
         Text = $"{title}\n{description}",
         Image = CreateMenuGlyph(color, glyph),
         AutoSize = false,
-        Size = new Size(300, 46),
+        Size = new Size(340, 46),
         Font = new Font(FontFamily.GenericSansSerif, 9, FontStyle.Regular),
         TextImageRelation = TextImageRelation.ImageBeforeText,
         ImageAlign = ContentAlignment.MiddleLeft,
         TextAlign = ContentAlignment.MiddleLeft,
         Margin = new Padding(1),
         Padding = new Padding(4, 1, 4, 1),
-        ToolTipText = description
+        ToolTipText = detail ?? description
     }.Also(item => item.Click += action);
 
     private void ToggleStartWithWindows()
@@ -230,6 +238,10 @@ internal sealed class TrayApplication : ApplicationContext
                     break;
                 case ModeKind.CompileBoost:
                     PowerManager.SetActiveScheme("SCHEME_MIN");
+                    // High performance is only a plan, not a guarantee: a
+                    // quiet mode that ran while it was active leaves its caps
+                    // behind and pins the CPU to its base clock.
+                    PowerManager.SetTurboPerformance();
                     PowerManager.KeepAwake(keepDisplayOn: true);
                     break;
             }
@@ -519,8 +531,14 @@ internal static class PowerManager
     private static readonly (string Group, string Setting)[] Settings =
     [
         (Processor, "PROCTHROTTLEMIN"), (Processor, "PROCTHROTTLEMAX"), (Processor, "PERFBOOSTMODE"),
+        (Processor, "PROCFREQMAX"), (Processor, "PROCFREQMAX1"), (Processor, "PERFEPP"), (Processor, "SYSCOOLPOL"),
         ("SUB_VIDEO", "VIDEOIDLE"), ("SUB_SLEEP", "STANDBYIDLE"), ("SUB_SLEEP", "HIBERNATEIDLE")
     ];
+
+    // Hidden or absent on many OEM plans. A mode must still work without
+    // them, because the throttle limits alone already do most of the work.
+    private static readonly HashSet<string> OptionalSettings =
+        ["PERFBOOSTMODE", "PROCFREQMAX", "PROCFREQMAX1", "PERFEPP", "SYSCOOLPOL"];
 
     [Flags]
     private enum ExecutionState : uint { Continuous = 0x80000000, SystemRequired = 0x1, DisplayRequired = 0x2 }
@@ -537,10 +555,10 @@ internal static class PowerManager
             {
                 snapshot.Values[$"{group}/{setting}"] = ReadValue(group, setting);
             }
-            catch (InvalidOperationException) when (setting == "PERFBOOSTMODE")
+            catch (InvalidOperationException) when (OptionalSettings.Contains(setting))
             {
-                // Some OEM plans hide or omit the Turbo Boost setting. CPU
-                // maximum limits still work, so this must not block a mode.
+                // Nothing to restore later for a setting this plan does not
+                // expose, and that must not block a mode.
             }
         }
         return snapshot;
@@ -548,12 +566,27 @@ internal static class PowerManager
 
     public static void Restore(PowerSnapshot snapshot)
     {
+        // The original plan has to come back first. Every write below targets
+        // SCHEME_CURRENT, so restoring while a mode's own plan is still active
+        // would copy this snapshot into that plan and leave it capped for good.
+        SetActiveScheme(snapshot.ActiveScheme);
         foreach (var (group, setting) in Settings)
         {
             if (!snapshot.Values.TryGetValue($"{group}/{setting}", out var value)) continue;
-            SetValue(group, setting, value.Ac, value.Dc);
+            TrySetValue(group, setting, value.Ac, value.Dc);
         }
-        SetActiveScheme(snapshot.ActiveScheme);
+        ApplyCurrentScheme();
+    }
+
+    public static void SetTurboPerformance()
+    {
+        SetValue(Processor, "PROCTHROTTLEMIN", 100, 100);
+        SetValue(Processor, "PROCTHROTTLEMAX", 100, 100);
+        TrySetValue(Processor, "PERFBOOSTMODE", 2, 2);   // 2 = Aggressive
+        TrySetValue(Processor, "PROCFREQMAX", 0, 0);     // 0 = no MHz ceiling
+        TrySetValue(Processor, "PROCFREQMAX1", 0, 0);
+        TrySetValue(Processor, "PERFEPP", 0, 0);         // 0 = favour performance
+        TrySetValue(Processor, "SYSCOOLPOL", 1, 1);      // 1 = fan before throttling
     }
 
     public static void SetProcessorLimits(uint acMaximum, uint dcMaximum, bool disableBoost)
@@ -609,7 +642,7 @@ internal static class PowerManager
     private static void TrySetValue(string group, string setting, uint ac, uint dc)
     {
         try { SetValue(group, setting, ac, dc); }
-        catch (InvalidOperationException) when (setting == "PERFBOOSTMODE")
+        catch (InvalidOperationException) when (OptionalSettings.Contains(setting))
         {
             // Optional on some laptops and OEM power plans.
         }
